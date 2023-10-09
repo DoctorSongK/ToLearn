@@ -24,6 +24,12 @@
 namespace cartographer {
 namespace mapping {
 
+/**
+ * @brief 任务项目
+ * @param time任务开始执行时间
+ * @param task函数对象，其返回值为Result(kDoNotRunOptimization、kRunOptimization) 
+ * 
+ */
 struct WorkItem {
   enum class Result {
     kDoNotRunOptimization, // 执行任务结束后不需要执行优化
@@ -36,7 +42,7 @@ struct WorkItem {
   std::function<Result()> task;
 };
 
-// 双端队列
+// 基于WorkItem的双端队列
 using WorkQueue = std::deque<WorkItem>;
 
 }  // namespace mapping

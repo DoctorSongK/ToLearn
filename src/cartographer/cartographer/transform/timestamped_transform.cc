@@ -21,7 +21,9 @@
 namespace cartographer {
 namespace transform {
 
-// 线性插值
+// core: cartographer后端线性插值部分
+// 直线方程：
+//        (y-y1)/(y2-y1) = (x-x1)/(x2-x1)
 // tag: 画图说明一下
 TimestampedTransform Interpolate(const TimestampedTransform& start,
                                  const TimestampedTransform& end,

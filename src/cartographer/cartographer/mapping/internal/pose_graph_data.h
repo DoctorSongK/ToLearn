@@ -80,12 +80,12 @@ struct PoseGraphData {
   MapById<SubmapId, InternalSubmapData> submap_data;
 
   // Global submap poses currently used for displaying data.
-  // note: PoseGraphData::global_submap_poses_2d包含在global坐标系下的所有子图坐标
+  // note: PoseGraphData::global_submap_poses_2d包含在global坐标系下的所有子图坐标，包含SubmapId和global_pose
   MapById<SubmapId, optimization::SubmapSpec2D> global_submap_poses_2d;
   MapById<SubmapId, optimization::SubmapSpec3D> global_submap_poses_3d;
 
   // Data that are currently being shown.
-  // note: 所有的轨迹节点的id与 节点的在global坐标系下的坐标, 在local map 下的坐标与时间
+  // note: 所有的轨迹节点的id与 节点的在global坐标系下的坐标, 在local map 下的坐标与时间, 包含NodeId和TrajectoryNode
   MapById<NodeId, TrajectoryNode> trajectory_nodes;
 
   // Global landmark poses with all observations.

@@ -194,6 +194,8 @@ NodeId PoseGraph2D::AppendNode(
 
   // Test if the 'insertion_submap.back()' is one we never saw before.
   // 如果是刚开始的轨迹, 或者insertion_submaps.back()是第一次看到, 就添加新的子图
+  // note: 注意这里的std::prev内部存在++, *()等操作。
+  // note: 当更新submapId时，判断当前轨迹ID是否为新建的或者pose_graph_data中存储子图已经落后
   if (data_.submap_data.SizeOfTrajectoryOrZero(trajectory_id) == 0 ||
       std::prev(data_.submap_data.EndOfTrajectory(trajectory_id))
               ->data.submap != insertion_submaps.back()) {
@@ -209,6 +211,7 @@ NodeId PoseGraph2D::AppendNode(
     // 地图是刚生成的, 但是地图会在前端部分通过插入点云数据进行更新, 这里只保存指针
     // tag: 画图说明一下
     data_.submap_data.at(submap_id).submap = insertion_submaps.back();
+    // note: 完成插入子图日志输出
     LOG(INFO) << "Inserted submap " << submap_id << ".";
     kActiveSubmapsMetric->Increment();
   }
@@ -256,17 +259,20 @@ void PoseGraph2D::AddWorkItem(
     const std::function<WorkItem::Result()>& work_item) {
   absl::MutexLock locker(&work_queue_mutex_);
 
+  // core: 线程池使用->step1 初始化工作任务队列，不是只有第一次才进行初始化，在后续操作中当work_queue为空时，其会被附为空指针，当再次进入时又重新初始化
   if (work_queue_ == nullptr) {
     // work_queue_的初始化
     work_queue_ = absl::make_unique<WorkQueue>();
     // 将 执行一次DrainWorkQueue()的任务 放入线程池中等待计算
     auto task = absl::make_unique<common::Task>();
+    // core: 线程池使用->step2 将对应任务压入线程池任务队列中并执行
     task->SetWorkItem([this]() { DrainWorkQueue(); });
     thread_pool_->Schedule(std::move(task));
   }
 
   const auto now = std::chrono::steady_clock::now();
   // 将传入的任务放入work_queue_队列中
+  // core: 线程池使用->step3 向工作队列中压入work_item
   work_queue_->push_back({now, work_item});
 
   kWorkQueueSizeMetric->Set(work_queue_->size());
@@ -721,6 +727,7 @@ void PoseGraph2D::DrainWorkQueue() {
       absl::MutexLock locker(&work_queue_mutex_);
       // 退出条件1 如果任务队列空了, 就将work_queue_的指针删除
       if (work_queue_->empty()) {
+        // NOTE: 注意这里在reset之后，unique_ptr指针又变成了空指针，所以在AddWorkItem时会不停地初始化工作任务队列
         work_queue_.reset();
         return;
       }
@@ -739,6 +746,7 @@ void PoseGraph2D::DrainWorkQueue() {
   LOG(INFO) << "Remaining work items in queue: " << work_queue_size;
   // We have to optimize again.
   // 退出循环后, 首先等待计算约束中的任务执行完, 再执行HandleWorkQueue,进行优化
+  // core: 线程池使用->step4 退出work_queue循环，进行优化
   constraint_builder_.WhenDone(
       [this](const constraints::ConstraintBuilder2D::Result& result) {
         HandleWorkQueue(result);

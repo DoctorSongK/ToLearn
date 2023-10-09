@@ -84,6 +84,7 @@ static std::array<T, 6> ComputeUnscaledError(
     const transform::Rigid3d& relative_pose, const T* const start_rotation,
     const T* const start_translation, const T* const end_rotation,
     const T* const end_translation) {
+  // 四元数的逆是w不变，x、y、z变为负值
   const Eigen::Quaternion<T> R_i_inverse(start_rotation[0], -start_rotation[1],
                                          -start_rotation[2],
                                          -start_rotation[3]);

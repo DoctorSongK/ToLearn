@@ -28,6 +28,7 @@ namespace common {
 
 class ThreadPoolInterface;
 
+///@brief 与线程池相互配合，并且在线程池头文件中做了前向声明
 class Task {
  public:
   friend class ThreadPoolInterface;

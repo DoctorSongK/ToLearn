@@ -60,7 +60,7 @@ class ThreadPoolInterface {
 // 当一个任务的所有依赖都完成后, 它会在后台线程中排队等待执行. 
 // 在调用析构函数之前队列必须为空. 然后线程池将等待当前正在执行的工作项完成, 然后销毁线程
 
-
+// core: 线程池部分
 class ThreadPool : public ThreadPoolInterface {
  public:
   explicit ThreadPool(int num_threads);
@@ -87,8 +87,9 @@ class ThreadPool : public ThreadPoolInterface {
   // 线程池
   std::vector<std::thread> pool_ GUARDED_BY(mutex_);  
   // 准备执行的task
+  // core: 线程池部分->任务队列，其中任务队列的先后关系由task类给定依赖关系
   std::deque<std::shared_ptr<Task>> task_queue_ GUARDED_BY(mutex_);
-  // 未准备好的 task, task可能有依赖还未完成
+  // 依赖以task为key的其他任务
   absl::flat_hash_map<Task*, std::shared_ptr<Task>> tasks_not_ready_
       GUARDED_BY(mutex_);
 };

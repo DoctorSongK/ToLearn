@@ -90,7 +90,8 @@ transform::Rigid2d ToPose(const std::array<double, 3>& values) {
 
 // Selects a trajectory node closest in time to the landmark observation and
 // applies a relative transform from it.
-// 根据landmark数据的时间对2个节点位姿进行插值, 得到这个时刻的global坐标系下的位姿
+// 根据landmark数据的时间对2个节点位姿进行插值, 得到该时刻landmark于global坐标系下的位姿
+// NOTE: 可以看做建图过程时发现landmark并记录其的全局位姿
 transform::Rigid3d GetInitialLandmarkPose(
     const LandmarkNode::LandmarkObservation& observation,
     const NodeSpec2D& prev_node, const NodeSpec2D& next_node,
@@ -111,6 +112,7 @@ transform::Rigid3d GetInitialLandmarkPose(
          observation.landmark_to_tracking_transform;
 }
 
+// core: cartographer后端残差项构建->第二种残差 landmark数据与通过两个节点位姿插值出来的相对位姿的差值
 // landmark数据 与 通过2个节点位姿插值出来的相对位姿 的差值作为残差项
 void AddLandmarkCostFunctions(
     const std::map<std::string, LandmarkNode>& landmark_nodes,
