@@ -68,7 +68,7 @@ class PoseGraphInterface {
     };
     // 同一时刻可能会观测到多个landmark数据
     std::vector<LandmarkObservation> landmark_observations;
-    // 这帧数据对应的tracking_frame在global坐标系下的位姿
+    // landmark在global坐标系下的位姿
     absl::optional<transform::Rigid3d> global_landmark_pose;
     bool frozen = false;
   };

@@ -47,6 +47,7 @@ class MapByTime {
 
   // Removes data no longer needed once 'node_id' gets removed from 'nodes'.
   // 'NodeType' must contain a 'time' member of type common::Time.
+  // QUES: 没明白为什么这里删除的时候不是只删除一个节点而已，而是轮询删除？
   template <typename NodeType>
   void Trim(const mapping::MapById<mapping::NodeId, NodeType>& nodes,
             const mapping::NodeId& node_id) {

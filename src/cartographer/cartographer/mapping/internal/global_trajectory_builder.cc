@@ -94,6 +94,7 @@ class GlobalTrajectoryBuilder : public mapping::TrajectoryBuilderInterface {
       kLocalSlamInsertionResults->Increment();
 
       // 将匹配后的结果 当做节点 加入到位姿图中
+      // core: 传感器数据流向->step7 将前端计算得到的submap以及node信息传输至pose_graph
       auto node_id = pose_graph_->AddNode(
           matching_result->insertion_result->constant_data, trajectory_id_,
           matching_result->insertion_result->insertion_submaps);

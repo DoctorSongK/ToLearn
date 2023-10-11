@@ -25,6 +25,7 @@
 namespace cartographer {
 namespace common {
 
+// core: 直方图分布
 class Histogram {
  public:
   void Add(float value);

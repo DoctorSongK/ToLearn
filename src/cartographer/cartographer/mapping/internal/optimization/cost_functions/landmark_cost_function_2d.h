@@ -62,6 +62,7 @@ class LandmarkCostFunction2D {
             prev_node_pose, prev_node_gravity_alignment_, next_node_pose,
             next_node_gravity_alignment_, interpolation_parameter_);
     // 计算加权残差
+    // c++11: std::get<0> 配合std::tuple使用，用于获取第一个元素
     const std::array<T, 6> error = ScaleError(
         ComputeUnscaledError(
             landmark_to_tracking_transform_,

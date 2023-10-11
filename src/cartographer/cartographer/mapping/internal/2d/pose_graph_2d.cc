@@ -204,6 +204,7 @@ NodeId PoseGraph2D::AppendNode(
 
     // 如果insertion_submaps.back()是第一次看到, 也就是新生成的
     // 在data_.submap_data中加入一个空的InternalSubmapData
+    // note: 逐步存储对应子图，完成所有子图维护
     const SubmapId submap_id =
         data_.submap_data.Append(trajectory_id, InternalSubmapData());
     
@@ -388,6 +389,7 @@ void PoseGraph2D::ComputeConstraint(const NodeId& node_id,
     // 获取该 node 和该 submap 中的 node 中较新的时间
     const common::Time node_time = GetLatestNodeTime(node_id, submap_id);
     // 两个轨迹的最后连接时间
+    // QUES: ？？？轨迹连接时间是怎么进行更新的？？？
     const common::Time last_connection_time =
         data_.trajectory_connectivity_state.LastConnectionTime(
             node_id.trajectory_id, submap_id.trajectory_id);
@@ -428,6 +430,7 @@ void PoseGraph2D::ComputeConstraint(const NodeId& node_id,
             .global_pose.inverse() *
         optimization_problem_->node_data().at(node_id).global_pose_2d;
     // 进行局部搜索窗口 的约束计算 (对局部子图进行回环检测)
+    // core: 传感器数据流向->step10, 将所得计算信息传输至constraint_builder_中，完成回环
     constraint_builder_.MaybeAddConstraint(
         submap_id, submap, node_id, constant_data, initial_relative_pose);
   } 
@@ -447,6 +450,7 @@ void PoseGraph2D::ComputeConstraint(const NodeId& node_id,
  * @param[in] newly_finished_submap 是否是新finished的submap
  * @return WorkItem::Result 是否需要执行全局优化
  */
+// core: 传感器数据流向->step8, 后端pose_graph计算节点间约束（执行回环检测）
 WorkItem::Result PoseGraph2D::ComputeConstraintsForNode(
     const NodeId& node_id,
     std::vector<std::shared_ptr<const Submap2D>> insertion_submaps,
@@ -461,7 +465,7 @@ WorkItem::Result PoseGraph2D::ComputeConstraintsForNode(
     const auto& constant_data =
         data_.trajectory_nodes.at(node_id).constant_data;
     
-    // 获取 trajectory_id 下的正处于活跃状态下的子图的SubmapId
+    // 获取 trajectory_id 下的正处于活跃状态下的子图的SubmapId，即insertion_submaps中最多两个子图的id
     submap_ids = InitializeGlobalSubmapPoses(
         node_id.trajectory_id, constant_data->time, insertion_submaps);
     CHECK_EQ(submap_ids.size(), insertion_submaps.size());
@@ -475,12 +479,15 @@ WorkItem::Result PoseGraph2D::ComputeConstraintsForNode(
                                  constant_data->gravity_alignment.inverse()));
     // 计算该Node在global坐标系下的二维位姿
     // global_pose * constraints::ComputeSubmapPose().inverse() = globla指向local的坐标变换
+    // NOTE: 此时认为optimization_problem_->submap_data().at(matching_id).global_pose是insertion_maps中已经被优化的第一个子图
+    // QUES: 那就是说未构建完成的子图也会被优化了？？？？
     const transform::Rigid2d global_pose_2d =
         optimization_problem_->submap_data().at(matching_id).global_pose *
         constraints::ComputeSubmapPose(*insertion_submaps.front()).inverse() *
         local_pose_2d;
     
     // 把该节点的信息加入到OptimizationProblem中
+    // core: 传感器数据流向->step9, 将所得计算信息传输至optimization_problem中
     optimization_problem_->AddTrajectoryNode(
         matching_id.trajectory_id,
         optimization::NodeSpec2D{constant_data->time, local_pose_2d,
@@ -496,7 +503,7 @@ WorkItem::Result PoseGraph2D::ComputeConstraintsForNode(
             SubmapState::kNoConstraintSearch);
       // 将node_id放到子图保存的node_ids的set中
       data_.submap_data.at(submap_id).node_ids.emplace(node_id);
-      // 计算 子图原点 指向 node坐标 间的坐标变换(子图内约束)
+      // note: 子图内约束 ==> 计算 子图原点 指向 node坐标 间的坐标变换
       const transform::Rigid2d constraint_transform =
           constraints::ComputeSubmapPose(*insertion_submaps[i]).inverse() *
           local_pose_2d;
@@ -514,9 +521,10 @@ WorkItem::Result PoseGraph2D::ComputeConstraintsForNode(
     // trajectories scheduled for deletion.
     // TODO(danielsievers): Add a member variable and avoid having to copy
     // them out here.
-    // 找到所有已经标记为kFinished状态的submap的id
+    // 在已经保存的找到所有已经标记为kFinished状态的submap的id
     for (const auto& submap_id_data : data_.submap_data) {
       if (submap_id_data.data.state == SubmapState::kFinished) {
+        // 以下是判断该节点应不位于子图内部，因为子图状态已经变为kFinished
         CHECK_EQ(submap_id_data.data.node_ids.count(node_id), 0);
         finished_submap_ids.emplace_back(submap_id_data.id);
       }
@@ -536,13 +544,14 @@ WorkItem::Result PoseGraph2D::ComputeConstraintsForNode(
     }
   } // end {}
 
-  // Step: 当前节点与所有已经完成的子图进行约束的计算---实际上就是回环检测
+  // Step: 当前节点与所有已经完成的子图进行约束的计算---实际上就是回环检测，经测试当前节点与所有finished子图构建的约束效果要好于刚完成子图与所有节点构建的约束
   for (const auto& submap_id : finished_submap_ids) {
     // 计算旧的submap和新的节点间的约束
+    // core: 传感器数据流向->step8-1, 执行约束计算
     ComputeConstraint(node_id, submap_id);
   }
 
-  // Step: 计算所有节点与刚完成子图间的约束---实际上就是回环检测
+  // // Step: 计算所有节点与刚完成子图间的约束---实际上就是回环检测，较上面的方式，该方式为低频回环
   if (newly_finished_submap) {
     const SubmapId newly_finished_submap_id = submap_ids.front();
     // We have a new completed submap, so we look into adding constraints for

@@ -37,7 +37,7 @@ namespace mapping {
 // that state.
 // 后台线程中子图的当前状态.在此转换为“kFinished”之后, 所有节点都将尝试与此子图匹配, 进行回环检测. 
 // 同样, 所有新节点都与kNoConstraintSearch状态下的子图匹配.
-// 子图状态: kNoConstraintSearch、kFinished
+// 子图状态: kNoConstraintSearch（不参与回环检测，仅用于新节点与子图匹配）、kFinished（参与回环检测，所有节点都与此子图进行匹配）
 enum class SubmapState { kNoConstraintSearch, kFinished };
 
 // 轨迹的状态
@@ -64,7 +64,7 @@ struct InternalSubmapData {
   // constraints for them. They are not to be matched again when this submap
   // becomes 'kFinished'.
   // 插入到此地图中的节点的 ID
-  // 当此子图变为“kFinished”后, 这些节点将不再与这个地图进行匹配.
+  // 当此子图变为“kFinished”后, 这些节点将不再与这个地图进行匹配，内部约束的节点不再参与匹配
   std::set<NodeId> node_ids;
 };
 
