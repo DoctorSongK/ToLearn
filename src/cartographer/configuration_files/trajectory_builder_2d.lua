@@ -15,9 +15,9 @@
 TRAJECTORY_BUILDER_2D = {
   use_imu_data = true,            -- 是否使用imu数据
   min_range = 0.,                 -- 雷达数据的最远最近滤波, 保存中间值
-  max_range = 30.,
+  max_range = 30.,              
   min_z = -0.8,                   -- 雷达数据的最高与最低的过滤, 保存中间值，将3D点云转换为2D切片
-  max_z = 2.,
+  max_z = 2.,                    
   missing_data_ray_length = 5.,   -- 超过最大距离范围的数据点用这个距离代替，可理解为一束激光射出距离超过max_range，证明该束激光对应的位置并无障碍物，为了更快更新地图，则人物5m范围内是没有障碍物的
   num_accumulated_range_data = 1, -- 几帧有效的点云数据进行一次扫描匹配
   voxel_filter_size = 0.025,      -- 体素滤波的立方体的边长
@@ -99,7 +99,7 @@ TRAJECTORY_BUILDER_2D = {
     num_range_data = 90,          -- 一个子图里插入雷达数据的个数的一半
     grid_options_2d = {
       grid_type = "PROBABILITY_GRID", -- 地图的种类, 还可以是tsdf格式
-      resolution = 0.02,
+      resolution = 0.05,
     },
     range_data_inserter = {
       range_data_inserter_type = "PROBABILITY_GRID_INSERTER_2D",

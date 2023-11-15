@@ -65,6 +65,7 @@ PoseGraph2D::PoseGraph2D(
       constraint_builder_(options_.constraint_builder_options(), thread_pool),
       thread_pool_(thread_pool) {
   // overlapping_submaps_trimmer_2d 在配置文件中被注释掉了, 没有使用
+  // QUES: 不确定这里的Trimmer是怎么用的
   if (options.has_overlapping_submaps_trimmer_2d()) {
     const auto& trimmer_options = options.overlapping_submaps_trimmer_2d();
     AddTrimmer(absl::make_unique<OverlappingSubmapsTrimmer2D>(
@@ -227,6 +228,7 @@ NodeId PoseGraph2D::AppendNode(
  * @param[in] insertion_submaps 子地图 active_submaps
  * @return NodeId 返回节点的ID
  */
+// core: 传感器数据流向->step7-A, 将前端计算结果（位姿、点云数据）传入pose_graph
 NodeId PoseGraph2D::AddNode(
     std::shared_ptr<const TrajectoryNode::Data> constant_data,
     const int trajectory_id,
@@ -251,7 +253,7 @@ NodeId PoseGraph2D::AddNode(
     return ComputeConstraintsForNode(node_id, insertion_submaps,
                                      newly_finished_submap);
   });
-
+ 
   return node_id;
 }
 
@@ -674,6 +676,7 @@ void PoseGraph2D::HandleWorkQueue(
     absl::MutexLock locker(&mutex_);
     // 根据优化后的约束更新子图轨迹id与节点轨迹id的连接关系
     for (const Constraint& constraint : result) {
+      // QUES: 用于更新轨迹间连接时间？？？？
       UpdateTrajectoryConnectivity(constraint);
     }
 
@@ -1105,6 +1108,7 @@ void PoseGraph2D::RunFinalOptimization() {
 }
 
 // 进行优化处理, 并使用优化结果对保存的数据进行更新
+// note: cartographer后端进行优化求解
 void PoseGraph2D::RunOptimization() {
   // 如果submap为空直接退出
   if (optimization_problem_->submap_data().empty()) {
@@ -1180,7 +1184,7 @@ void PoseGraph2D::RunOptimization() {
     data_.landmark_nodes[landmark.first].global_landmark_pose = landmark.second;
   }
 
-  // 更新所有submap的位姿
+  // NOTE: 更新所有submap的位姿, 此时data_中的submaps数据才得以被更新
   data_.global_submap_poses_2d = submap_data;
 }
 
@@ -1417,10 +1421,14 @@ transform::Rigid3d PoseGraph2D::ComputeLocalToGlobalTransform(
   auto begin_it = global_submap_poses.BeginOfTrajectory(trajectory_id);
   auto end_it = global_submap_poses.EndOfTrajectory(trajectory_id);
   // 没找到这个轨迹id
+  // QUES: 定位的时候会走这边吗？？？刚开始建图的时候是不是begin_it end_it都为空 为什么这里的begin_it end_it相等呢？
+  // 在刚开始建图前，begin_it end_it都是空轨迹，所以都进下面的程序，但是没有设定初值
+  // 待第三个子图构建之后，此时便有了轨迹值，然后就走了下面的程序，也就是说，建图前期不存在优化
   if (begin_it == end_it) {
     const auto it = data_.initial_trajectory_poses.find(trajectory_id);
     // 如果设置了初始位姿
     if (it != data_.initial_trajectory_poses.end()) {
+
       return GetInterpolatedGlobalTrajectoryPose(it->second.to_trajectory_id,
                                                  it->second.time) *
              it->second.relative_pose;
@@ -1431,7 +1439,8 @@ transform::Rigid3d PoseGraph2D::ComputeLocalToGlobalTransform(
     }
   }
 
-  // QUES: 现在是这么理解的,end_it是map_by_id.trajectories_.end()，而这里定义的迭代器为双向迭代器，需要进行++操作（循环应用operator++操作），直至达到end_it-1(应用operator--操作) 
+  // QUES: 此时在进行建图时，MayById的trajectory中已经包含了trajectory0,所以begin_it与end_it产生差异，此时应该读取begin_it,故应用std::prev(end_it)
+  // SOLVE: 在id.h头文件中，std::prev会调用MapById中的Iterator中的重载--命令，此时std::prev得到的迭代器中current_data指向轨迹中最后一个数据；对应std::next是执行重载“++”命令
   const SubmapId last_optimized_submap_id = std::prev(end_it)->id;
   // Accessing 'local_pose' in Submap is okay, since the member is const.
   // 通过最后一个优化后的 global_pose * local_pose().inverse() 获取 global_pose->local_pose的坐标变换

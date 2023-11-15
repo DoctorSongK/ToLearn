@@ -584,6 +584,9 @@ Node::ComputeExpectedSensorIds(const TrajectoryOptions& options) const {
   // required.
   // 3d slam必须有imu, 2d可有可无, imu的topic的个数只能有一个
   // param: lua中use_imu_data参数在此使用，2d可用可不用imu，3d必须用imu，且只能订阅一个
+  if(options.trajectory_builder_options.trajectory_builder_2d_options()
+           .use_imu_data())
+    LOG(WARNING) << "IMU 111111111111111111111111111111";
   if (node_options_.map_builder_options.use_trajectory_builder_3d() ||
       (node_options_.map_builder_options.use_trajectory_builder_2d() &&
        options.trajectory_builder_options.trajectory_builder_2d_options()
@@ -594,6 +597,7 @@ Node::ComputeExpectedSensorIds(const TrajectoryOptions& options) const {
   // 里程计可有可无, topic的个数只能有一个
   // param: lua中use_odometry参数在此使用，用于是否订阅odom信息，且只能订阅一个
   if (options.use_odometry) {
+    LOG(WARNING) << "ODOM 22222222222222222222222222222";
     expected_topics.insert(SensorId{SensorType::ODOMETRY, kOdometryTopic});
   }
   // NavSatFix is optional.

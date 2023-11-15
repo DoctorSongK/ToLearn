@@ -29,13 +29,13 @@ options = {
   publish_frame_projected_to_2d = false,    -- 是否将坐标系投影到平面上
   --use_pose_extrapolator = false,            -- 发布tf时是使用pose_extrapolator的位姿还是前端计算出来的位姿
 
-  use_odometry = false,                     -- 是否使用里程计,如果使用要求一定要有odom的tf
+  use_odometry = true,                     -- 是否使用里程计,如果使用要求一定要有odom的tf
   use_nav_sat = false,                      -- 是否使用gps
   use_landmarks = false,                    -- 是否使用landmark
-  num_laser_scans = 1,                      -- 是否使用单线激光数据 0的话就是不使用单线雷达 1的话就订阅scan,2的话订阅scan1、scan2 
+  num_laser_scans = 0,                      -- 是否使用单线激光数据 0的话就是不使用单线雷达 1的话就订阅scan,2的话订阅scan1、scan2 
   num_multi_echo_laser_scans = 0,           -- 是否使用multi_echo_laser_scans数据，和上面num_laser_scans一样
   num_subdivisions_per_laser_scan = 1,      -- 1帧数据被分成几次处理,一般为1,carto数据包中的雷达频率都可以达到1500hz
-  num_point_clouds = 0,                     -- 是否使用点云数据，同时可理解为是否使用多线激光雷达 || 需要注意这里可以将num_point_clouds置为1，num_laser_scans为0，则在这里用多线雷达构建2D地图
+  num_point_clouds = 1,                     -- 是否使用点云数据，同时可理解为是否使用多线激光雷达 || 需要注意这里可以将num_point_clouds置为1，num_laser_scans为0，则在这里用多线雷达构建2D地图
   
   lookup_transform_timeout_sec = 0.2,       -- 查找tf时的超时时间
   submap_publish_period_sec = 0.3,          -- 发布数据的时间间隔
@@ -78,9 +78,9 @@ TRAJECTORY_BUILDER_2D.ceres_scan_matcher.rotation_weight = 1.
 --TRAJECTORY_BUILDER_2D.imu_gravity_time_constant = 1.
 
 TRAJECTORY_BUILDER_2D.submaps.num_range_data = 80.
-TRAJECTORY_BUILDER_2D.submaps.grid_options_2d.resolution = 0.1
+TRAJECTORY_BUILDER_2D.submaps.grid_options_2d.resolution = 0.05
 
-POSE_GRAPH.optimize_every_n_nodes = 160.
+POSE_GRAPH.optimize_every_n_nodes = 160.  
 POSE_GRAPH.constraint_builder.sampling_ratio = 0.3
 POSE_GRAPH.constraint_builder.max_constraint_distance = 15.
 POSE_GRAPH.constraint_builder.min_score = 0.48

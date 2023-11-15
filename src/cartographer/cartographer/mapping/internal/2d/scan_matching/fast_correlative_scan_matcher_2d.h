@@ -55,6 +55,8 @@ class PrecomputationGrid2D {
   // min_score and max_score.
   // 获取栅格值
   int GetValue(const Eigen::Array2i& xy_index) const {
+    // -offset_的解释：
+    // 经过两次滑窗后的地图变更为长宽均扩大2offset的，所以如果要访问正确索引信息地图，在获取index前要-offset
     const Eigen::Array2i local_xy_index = xy_index - offset_;
     // The static_cast<unsigned> is for performance to check with 2 comparisons
     // xy_index.x() < offset_.x() || xy_index.y() < offset_.y() ||

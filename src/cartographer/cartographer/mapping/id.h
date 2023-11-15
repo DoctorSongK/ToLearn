@@ -148,6 +148,7 @@ class Range {
 template <typename IdType, typename DataType>
 class MapById {
  private:
+  // 前向声明：内包含node_id或map_id及其对应数据
   struct MapByIndex;
 
  public:
@@ -155,14 +156,14 @@ class MapById {
     IdType id;
     const DataType& data;
   };
-
+ public:
   // 自定义迭代器
   class ConstIterator {
    public:
     // c++11: std::bidirectional_iterator_tag 用于将迭代器的类别标识为双向迭代器
     // 一个满足 STL 要求的迭代器类必须全部定义这些别名
     using iterator_category =
-        std::bidirectional_iterator_tag;  // 迭代器类别的标签类类型
+        std::bidirectional_iterator_tag;  // 迭代器类别的标签类类型，双向迭代器
     using value_type = IdDataReference;   // 迭代器所指向值的类型
     using difference_type = int64;  // 两个迭代器之间差别值的类型
     using pointer =
@@ -201,6 +202,7 @@ class MapById {
     IdDataReference operator*() const {
       CHECK(current_trajectory_ != end_trajectory_);
       return IdDataReference{
+          // 返回轨迹ID, NodeID或MapID|对应ID数据信息
           IdType{current_trajectory_->first, current_data_->first},
           current_data_->second};
     }
@@ -355,6 +357,7 @@ class MapById {
   }
 
   // 对应id的数据是否存在
+  // @brief 检测轨迹是否存在 | 检测对应轨迹中对应ID数据是否存在
   bool Contains(const IdType& id) const {
     return trajectories_.count(id.trajectory_id) != 0 &&
            trajectories_.at(id.trajectory_id).data_.count(GetIndex(id)) != 0;
@@ -409,13 +412,13 @@ class MapById {
   // 返回所有轨迹中的第一个id号与最后一个id号
   Range<ConstTrajectoryIterator> trajectory_ids() const {
     return Range<ConstTrajectoryIterator>(
-        ConstTrajectoryIterator(trajectories_.begin()),     // 第一条轨迹中第一个id号迭代器
-        ConstTrajectoryIterator(trajectories_.end()));      // 最后一条轨迹中最后一个id号迭代器
+        ConstTrajectoryIterator(trajectories_.begin()),     // 第一条轨迹迭代器
+        ConstTrajectoryIterator(trajectories_.end()));      // 最后一条轨迹迭代器
   }
 
   // 指向0号轨迹的第一个数据的迭代器
   ConstIterator begin() const { return BeginOfTrajectory(0); }
-  // 整个表的最后位置的迭代器
+  // 整个表的最后位置的迭代器,因为是max值，所以一定会是轨迹map中最后迭代器
   ConstIterator end() const {
     return BeginOfTrajectory(std::numeric_limits<int>::max());
   }
@@ -433,7 +436,8 @@ class MapById {
     if (SizeOfTrajectoryOrZero(trajectory_id) == 0) {
       return EndOfTrajectory(trajectory_id);
     }
-
+    
+    // NOTE: 需要注意的是，这里的Trajectory指定是全轨迹节点数据，并不单纯轨迹
     const std::map<int, DataType>& trajectory =
         trajectories_.at(trajectory_id).data_;
     // 如果整个表的最后一个数据的时间比time小, 就返回EndOfTrajectory

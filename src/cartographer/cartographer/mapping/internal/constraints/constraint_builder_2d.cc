@@ -94,9 +94,9 @@ void ConstraintBuilder2D::MaybeAddConstraint(
     const SubmapId& submap_id, const Submap2D* const submap,
     const NodeId& node_id, const TrajectoryNode::Data* const constant_data,
     const transform::Rigid2d& initial_relative_pose) {
-  // 超过范围的不进行约束的计算
+  // param: max_constraint_distance 超过范围的不进行约束的计算
   if (initial_relative_pose.translation().norm() >
-      options_.max_constraint_distance()) { // param: max_constraint_distance
+      options_.max_constraint_distance()) { 
     return;
   }
   // 根据参数配置添加约束的频率
@@ -252,6 +252,7 @@ ConstraintBuilder2D::DispatchScanMatcherConstruction(const SubmapId& submap_id,
   return &submap_scan_matchers_.at(submap_id);
 }
 
+// core: cartographer后端部分--pose graph中回环检测部分
 /**
  * @brief 计算节点和子图之间的一个约束(回环检测)
  *        用基于分支定界算法的匹配器进行粗匹配,然后用ceres进行精匹配

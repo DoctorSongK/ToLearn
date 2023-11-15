@@ -57,7 +57,7 @@ transform::Rigid2d ComputeSubmapPose(const Submap2D& submap);
 // and another MaybeAdd(Global)Constraint()/WhenDone() cycle can follow.
 //
 // This class is thread-safe.
-// 计算某一个节点与某一个submap之间的约束关系
+/// @brief 计算某一个节点与某一个submap之间的约束关系，主要功能为回环检测计算（同一轨迹、不同轨迹）
 class ConstraintBuilder2D {
  public:
   using Constraint = PoseGraphInterface::Constraint;
@@ -97,6 +97,7 @@ class ConstraintBuilder2D {
   // Registers the 'callback' to be called with the results, after all
   // computations triggered by 'MaybeAdd*Constraint' have finished.
   // 'callback' is executed in the 'ThreadPool'.
+  ///@brief 在MaybeAdd*Constraint执行完毕后，将参数callback放置线程池中使用
   void WhenDone(const std::function<void(const Result&)>& callback);
 
   // Returns the number of consecutive finished nodes.

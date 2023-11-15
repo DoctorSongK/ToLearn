@@ -52,12 +52,14 @@ SearchParameters::SearchParameters(const double linear_search_window,
                                          (2. * common::Pow2(max_scan_range)));
 
   // 范围除以分辨率得到个数
+  // note: 应用参数angular_search_window
   num_angular_perturbations =
       std::ceil(angular_search_window / angular_perturbation_step_size);
   // num_scans是要生成旋转点云的个数, 即包含[-angular_search_window, angular_search_window]
   num_scans = 2 * num_angular_perturbations + 1;
 
   // XY方向的搜索范围, 单位是多少个栅格
+  // note: 应用参数linear_search_window
   const int num_linear_perturbations =
       std::ceil(linear_search_window / resolution);
 

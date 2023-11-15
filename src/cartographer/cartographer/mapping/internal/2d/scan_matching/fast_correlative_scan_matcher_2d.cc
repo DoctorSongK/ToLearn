@@ -41,6 +41,7 @@ namespace {
 // of the current values in the collection can be retrieved.
 // All of it in (amortized) O(1).
 // 滑动窗口算法
+// core: cartographer 后端部分--滑动窗口算法（设定有些不同，并没有设定窗口大小，仅仅是通过值的大小完成滑动）
 class SlidingWindowMaximum {
  public:
   // 添加值, 会将小于填入值的其他值删掉, 再将这个值放到最后
@@ -97,6 +98,15 @@ CreateFastCorrelativeScanMatcherOptions2D(
 }
 
 // 构造不同分辨率的地图
+// core: cartographer 后端--多分辨率地图构造部分-2
+/**
+ * @brief Construct a new Precomputation Grid 2 D:: Precomputation Grid 2 D object
+ * 
+ * @param[in] grid 
+ * @param[in] limits 
+ * @param[in] width 滑窗的窗口长度
+ * @param[in] reusable_intermediate_grid 
+ */
 PrecomputationGrid2D::PrecomputationGrid2D(
     const Grid2D& grid, const CellLimits& limits, const int width,
     std::vector<float>* reusable_intermediate_grid)
@@ -240,6 +250,7 @@ uint8 PrecomputationGrid2D::ComputeCellValue(const float probability) const {
 }
 
 // 构造多分辨率地图
+// core: cartographer 后端--多分辨率地图构造部分-1
 PrecomputationGridStack2D::PrecomputationGridStack2D(
     const Grid2D& grid,
     const proto::FastCorrelativeScanMatcherOptions2D& options) {
@@ -304,7 +315,7 @@ bool FastCorrelativeScanMatcher2D::Match(
 }
 
 /**
- * @brief 进行全局搜索窗口的约束计算(对整体子图进行回环检测)
+ * @brief 基于地图中心点进行全局搜索窗口的约束计算(对整体子图进行回环检测)
  * 
  * @param[in] point_cloud 原点位于local坐标系原点处的点云
  * @param[in] min_score 最小阈值, 低于这个分数会返回失败
@@ -406,7 +417,7 @@ FastCorrelativeScanMatcher2D::ComputeLowestResolutionCandidates(
 std::vector<Candidate2D>
 FastCorrelativeScanMatcher2D::GenerateLowestResolutionCandidates(
     const SearchParameters& search_parameters) const {
-  const int linear_step_size = 1 << precomputation_grid_stack_->max_depth();
+  const int linear_step_size = 1 << precomputation_grid_stack_->max_depth();    // 64
   int num_candidates = 0;
   // 遍历旋转后的每个点云
   for (int scan_index = 0; scan_index != search_parameters.num_scans;
@@ -483,6 +494,7 @@ void FastCorrelativeScanMatcher2D::ScoreCandidates(
             std::greater<Candidate2D>());
 }
 
+// core: cartographer 后端--基于多分辨率地图的分支定界算法，分支定界不是对地图进行分支，而是对位姿节点进行向右下分支，逐渐缩小范围
 /**
  * @brief 基于多分辨率地图的分支定界搜索算法
  * 
@@ -524,7 +536,18 @@ Candidate2D FastCorrelativeScanMatcher2D::BranchAndBound(
     std::vector<Candidate2D> higher_resolution_candidates;
     // 搜索步长减为上层的一半
     const int half_width = 1 << (candidate_depth - 1);
-
+    /**
+     *(0，0) ____________________ (0, half_width_last_floor)
+     *      |    |    |         |
+     *      |____|____|         |       分支定界后选出左上角节点范围，然后在从节点范围内分割，从中找出更好的
+     *      |    |    |         |                              
+     *      |____|____|_________|                     
+     *      |         |         |
+     *      |         |         |
+     *      |         |         |
+     *      |_________|_________|  (half_width_last_floor, half_width_last_floor)
+     *(half_width_last_floor, 0)
+     */
     // Step: 分枝 对x、y偏移进行遍历, 求出candidate的四个子节点候选解
     for (int x_offset : {0, half_width}) { // 只能取0和half_width
       // 如果超过了界限, 就跳过
@@ -537,14 +560,13 @@ Candidate2D FastCorrelativeScanMatcher2D::BranchAndBound(
             search_parameters.linear_bounds[candidate.scan_index].max_y) {
           break;
         }
-
         // 候选者依次推进来, 一共4个,可以看出, 分枝定界方法的分枝是向右下角的四个子节点进行分枝
         higher_resolution_candidates.emplace_back(
             candidate.scan_index, candidate.x_index_offset + x_offset,
             candidate.y_index_offset + y_offset, search_parameters);
       }
     }
-
+    
     // 对新生成的4个候选解进行打分与排序, 同一个点云, 不同地图
     ScoreCandidates(precomputation_grid_stack_->Get(candidate_depth - 1),
                     discrete_scans, search_parameters,

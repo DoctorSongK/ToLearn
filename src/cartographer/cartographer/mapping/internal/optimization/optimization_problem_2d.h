@@ -51,6 +51,7 @@ struct SubmapSpec2D {
   transform::Rigid2d global_pose;
 };
 
+/// @brief 对五项约束进行定义以及ceres计算
 class OptimizationProblem2D
     : public OptimizationProblemInterface<NodeSpec2D, SubmapSpec2D,
                                           transform::Rigid2d> {

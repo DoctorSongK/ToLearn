@@ -15,27 +15,38 @@
 -->
 
 <launch>
-  <!-- bag的地址与名称 ,env指的是环境变量，S是显示环境变量的值-->
-  <arg name="bag_filename" default="$(env HOME)/bagfiles/rslidar-outdoor-gps-notf.bag"/>
-
+  <!-- bag的地址与名称 ,env指的是环境变量，S是显示环境变量的值 rslidar-outdoor-gps-notf.bag rslidar-lio-data.bag -->
+  <!-- <arg name="bag_filename" default="$(env HOME)/bagfiles/machine_room_data.bag"/> -->
+  <arg name="bag_filename" default="$(env HOME)/bagfiles/rslidar-lio-data.bag"/>
   <!-- 使用bag的时间戳 -->
   <param name="/use_sim_time" value="true" />
 
-  <!-- 启动cartographer -->
+  <!-- 启动cartographer sk_laser_2d.lua lx_rs16_2d_outdoor.lua-->
   <node name="cartographer_node" pkg="cartographer_ros"
       type="cartographer_node" args="
           -configuration_directory $(find cartographer_ros)/configuration_files
           -configuration_basename lx_rs16_2d_outdoor.lua"
-      output="screen">
+      output="screen"> 
     <remap from="points2" to="rslidar_points" />
     <remap from="scan" to="front_scan" />
     <remap from="odom" to="odom_scout" />
     <remap from="imu" to="imu" />
-  </node>
+  </node> 
+
+  <!-- <node name="cartographer_node" pkg="cartographer_ros"
+    type="cartographer_node" args="
+        -configuration_directory $(find cartographer_ros)/configuration_files
+        -configuration_basename sk_laser_2d.lua"
+    output="screen">
+    <remap from="points2" to="rslidar_points" />
+    <remap from="scan" to="scan" />
+    <remap from="odom" to="odom" />
+    <remap from="imu" to="imu_data_raw" />
+  </node> -->
 
   <!-- 生成ros格式的地图 -->
   <node name="cartographer_occupancy_grid_node" pkg="cartographer_ros"
-      type="cartographer_occupancy_grid_node" args="-resolution 0.02" />
+      type="cartographer_occupancy_grid_node" args="-resolution 0.05" />
 
   <!-- 启动rviz -->
   <node name="rviz" pkg="rviz" type="rviz" required="true"
@@ -43,6 +54,6 @@
 
   <!-- 启动rosbag -->
   <node name="playbag" pkg="rosbag" type="play"
-      args="--clock -r 2.5 $(arg bag_filename)" />
+      args="--clock -r 2 $(arg bag_filename)" />
 
 </launch>
