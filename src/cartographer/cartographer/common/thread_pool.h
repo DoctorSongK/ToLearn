@@ -89,7 +89,8 @@ class ThreadPool : public ThreadPoolInterface {
   // 准备执行的task
   // core: 线程池部分->任务队列，其中任务队列的先后关系由task类给定依赖关系
   std::deque<std::shared_ptr<Task>> task_queue_ GUARDED_BY(mutex_);
-  // 依赖以task为key的其他任务
+  // NOTE: 当我所依赖的任务还有没完成的时，此时线程池将此任务分为“未准备就绪的任务队列”；
+  // 当我所依赖的任务都完成时，便将我从“未准备就绪的任务队列”中删除，放置task_queue(待执行队列中)
   absl::flat_hash_map<Task*, std::shared_ptr<Task>> tasks_not_ready_
       GUARDED_BY(mutex_);
 };

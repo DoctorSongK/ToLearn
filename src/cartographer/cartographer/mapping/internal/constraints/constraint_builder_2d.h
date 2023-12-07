@@ -141,6 +141,7 @@ class ConstraintBuilder2D {
   absl::Mutex mutex_;
 
   // 'callback' set by WhenDone().
+  // NOTE: 接收外部传入的函数对象，但是并不执行
   std::unique_ptr<std::function<void(const Result&)>> when_done_
       GUARDED_BY(mutex_);
 
@@ -153,7 +154,8 @@ class ConstraintBuilder2D {
   int num_finished_nodes_ GUARDED_BY(mutex_) = 0;
 
   std::unique_ptr<common::Task> finish_node_task_ GUARDED_BY(mutex_);
-
+  
+  // NOTE: 将外部传入的函数对象转换为task，并放入线程池中等待执行
   std::unique_ptr<common::Task> when_done_task_ GUARDED_BY(mutex_);
 
   // Constraints currently being computed in the background. A deque is used to

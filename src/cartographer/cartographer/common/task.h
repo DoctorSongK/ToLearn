@@ -56,10 +56,12 @@ class Task {
 
   // State must be 'NEW'. 'dependency' may be nullptr, in which case it is
   // assumed completed.
+  /// @brief 增加我所依赖的相关任务，同时增加相关任务被依赖项
   void AddDependency(std::weak_ptr<Task> dependency) LOCKS_EXCLUDED(mutex_);
 
  private:
   // Allowed in all states.
+  /// @brief 增加依赖我的任务
   void AddDependentTask(Task* dependent_task);
 
   // State must be 'DEPENDENCIES_COMPLETED' and becomes 'COMPLETED'.
@@ -79,7 +81,7 @@ class Task {
   State state_ GUARDED_BY(mutex_) = NEW;
   // 本任务依赖的任务的个数
   unsigned int uncompleted_dependencies_ GUARDED_BY(mutex_) = 0;
-  // 依赖本任务的其他任务
+  // 依赖本任务的其他任务（依赖我的）
   std::set<Task*> dependent_tasks_ GUARDED_BY(mutex_);
 
   absl::Mutex mutex_;

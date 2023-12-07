@@ -88,7 +88,7 @@ void Task::SetThreadPool(ThreadPoolInterface* thread_pool) {
   }
 }
 
-// 添加依赖本Task的Task
+// 添加依赖本Task的Task，增加依赖我的
 void Task::AddDependentTask(Task* dependent_task) {
   absl::MutexLock locker(&mutex_);
 

@@ -32,10 +32,10 @@ options = {
   use_odometry = true,                     -- 是否使用里程计,如果使用要求一定要有odom的tf
   use_nav_sat = false,                      -- 是否使用gps
   use_landmarks = false,                    -- 是否使用landmark
-  num_laser_scans = 0,                      -- 是否使用单线激光数据 0的话就是不使用单线雷达 1的话就订阅scan,2的话订阅scan1、scan2 
+  num_laser_scans = 1,                      -- 是否使用单线激光数据 0的话就是不使用单线雷达 1的话就订阅scan,2的话订阅scan1、scan2 
   num_multi_echo_laser_scans = 0,           -- 是否使用multi_echo_laser_scans数据，和上面num_laser_scans一样
   num_subdivisions_per_laser_scan = 1,      -- 1帧数据被分成几次处理,一般为1,carto数据包中的雷达频率都可以达到1500hz
-  num_point_clouds = 1,                     -- 是否使用点云数据，同时可理解为是否使用多线激光雷达 || 需要注意这里可以将num_point_clouds置为1，num_laser_scans为0，则在这里用多线雷达构建2D地图
+  num_point_clouds = 0,                     -- 是否使用点云数据，同时可理解为是否使用多线激光雷达 || 需要注意这里可以将num_point_clouds置为1，num_laser_scans为0，则在这里用多线雷达构建2D地图
   
   lookup_transform_timeout_sec = 0.2,       -- 查找tf时的超时时间
   submap_publish_period_sec = 0.3,          -- 发布数据的时间间隔
@@ -54,7 +54,7 @@ MAP_BUILDER.use_trajectory_builder_2d = true
 
 TRAJECTORY_BUILDER_2D.use_imu_data = true
 TRAJECTORY_BUILDER_2D.min_range = 0.3
-TRAJECTORY_BUILDER_2D.max_range = 100.
+TRAJECTORY_BUILDER_2D.max_range = 100.  --100
 TRAJECTORY_BUILDER_2D.min_z = 0.2 --暴力滤除地面点   看到这里拉
 --TRAJECTORY_BUILDER_2D.max_z = 1.4
 --TRAJECTORY_BUILDER_2D.voxel_filter_size = 0.02

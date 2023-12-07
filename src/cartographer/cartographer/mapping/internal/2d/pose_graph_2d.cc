@@ -83,6 +83,14 @@ PoseGraph2D::~PoseGraph2D() {
 }
 
 // 返回指定轨迹id下的正处于活跃状态下的子图的SubmapId
+/**
+ * @brief 返回后端submap队列中最后两个子图（已经开始建图）、最后一个子图（刚开始建图）
+ * 
+ * @param[in] trajectory_id 
+ * @param[in] time 
+ * @param[in] insertion_submaps 
+ * @return std::vector<SubmapId> 
+ */
 std::vector<SubmapId> PoseGraph2D::InitializeGlobalSubmapPoses(
     const int trajectory_id, const common::Time time,
     const std::vector<std::shared_ptr<const Submap2D>>& insertion_submaps) {
@@ -195,8 +203,8 @@ NodeId PoseGraph2D::AppendNode(
 
   // Test if the 'insertion_submap.back()' is one we never saw before.
   // 如果是刚开始的轨迹, 或者insertion_submaps.back()是第一次看到, 就添加新的子图
-  // note: 注意这里的std::prev内部存在++, *()等操作。
-  // note: 当更新submapId时，判断当前轨迹ID是否为新建的或者pose_graph_data中存储子图已经落后
+  // note: 注意这里的std::prev内部存在--, *()等操作。
+  // note: 当更新submapId时，判断当前轨迹ID是否为新建的或者pose_graph_data中存储子图已经落后,此时完成后端子图维护更新
   if (data_.submap_data.SizeOfTrajectoryOrZero(trajectory_id) == 0 ||
       std::prev(data_.submap_data.EndOfTrajectory(trajectory_id))
               ->data.submap != insertion_submaps.back()) {
@@ -248,7 +256,7 @@ NodeId PoseGraph2D::AddNode(
   const bool newly_finished_submap =
       insertion_submaps.front()->insertion_finished();
 
-  // 把计算约束的工作放入workitem中等待执行
+  // 将计算节点约束推送至work_queue中，等待Handle处理
   AddWorkItem([=]() LOCKS_EXCLUDED(mutex_) {
     return ComputeConstraintsForNode(node_id, insertion_submaps,
                                      newly_finished_submap);
@@ -258,6 +266,7 @@ NodeId PoseGraph2D::AddNode(
 }
 
 // 将任务放入到任务队列中等待被执行
+// note: 在这里DrainWorkQueue将work_queue_中的任务推出执行，当遇到优化时则停止普通任务运行，而是HandleWorkQueue，处理约束进行优化项计算RunOptimization，等待优化结束，又重新回到DrainWorkQueue进行普通函数处理，直至work_queue_无任务处理
 void PoseGraph2D::AddWorkItem(
     const std::function<WorkItem::Result()>& work_item) {
   absl::MutexLock locker(&work_queue_mutex_);
@@ -270,6 +279,7 @@ void PoseGraph2D::AddWorkItem(
     auto task = absl::make_unique<common::Task>();
     // core: 线程池使用->step2 将对应任务压入线程池任务队列中并执行
     task->SetWorkItem([this]() { DrainWorkQueue(); });
+    // 此时线程池在这里调度，并将此处的task压入到线程池中的tasks_not_ready_
     thread_pool_->Schedule(std::move(task));
   }
 
@@ -391,13 +401,16 @@ void PoseGraph2D::ComputeConstraint(const NodeId& node_id,
     // 获取该 node 和该 submap 中的 node 中较新的时间
     const common::Time node_time = GetLatestNodeTime(node_id, submap_id);
     // 两个轨迹的最后连接时间
-    // QUES: ？？？轨迹连接时间是怎么进行更新的？？？
+    // QUES: ？？？轨迹连接时间是怎么进行更新的？？？ -> 在Handle函数中处理时，通过update函数进行更新
     const common::Time last_connection_time =
         data_.trajectory_connectivity_state.LastConnectionTime(
             node_id.trajectory_id, submap_id.trajectory_id);
 
     // 如果节点和子图属于同一轨迹, 或者时间小于阈值
     // 则只需进行 局部搜索窗口 的约束计算(对局部子图进行回环检测)
+    // LOG(INFO) << "node time: " << node_time << "\t\n" 
+    //           << "last_connection_time: " << last_connection_time;
+    // QUES: 不确定为啥last_connection_time一直是0
     if (node_id.trajectory_id == submap_id.trajectory_id ||
         node_time <
             last_connection_time +
@@ -407,7 +420,6 @@ void PoseGraph2D::ComputeConstraint(const NodeId& node_id,
       // has been a recent global constraint that ties that node's trajectory to
       // the submap's trajectory, it suffices to do a match constrained to a
       // local search window.
-
       maybe_add_local_constraint = true;
     }
     // 如果节点与子图不属于同一条轨迹 并且 间隔了一段时间, 同时采样器为true
@@ -482,7 +494,8 @@ WorkItem::Result PoseGraph2D::ComputeConstraintsForNode(
     // 计算该Node在global坐标系下的二维位姿
     // global_pose * constraints::ComputeSubmapPose().inverse() = globla指向local的坐标变换
     // NOTE: 此时认为optimization_problem_->submap_data().at(matching_id).global_pose是insertion_maps中已经被优化的第一个子图
-    // QUES: 那就是说未构建完成的子图也会被优化了？？？？
+    
+    // 该节点（此帧数据）在global坐标系下的位姿 = 已优化地图的global_pose * local坐标系下的相对位姿
     const transform::Rigid2d global_pose_2d =
         optimization_problem_->submap_data().at(matching_id).global_pose *
         constraints::ComputeSubmapPose(*insertion_submaps.front()).inverse() *
@@ -496,7 +509,7 @@ WorkItem::Result PoseGraph2D::ComputeConstraintsForNode(
                                  global_pose_2d,
                                  constant_data->gravity_alignment});
 
-    // 遍历2个子图, 将节点加入子图的节点列表中, 计算子图原点与及节点间的约束(子图内约束)
+    // 遍历2个子图, 将节点加入子图的节点列表中, 计算子图原点与及节点间的约束(子图内约束) --> 这个约束包含active_map中两地图与新节点的匹配
     for (size_t i = 0; i < insertion_submaps.size(); ++i) {
       const SubmapId submap_id = submap_ids[i];
       // Even if this was the last node added to 'submap_id', the submap will
@@ -523,7 +536,7 @@ WorkItem::Result PoseGraph2D::ComputeConstraintsForNode(
     // trajectories scheduled for deletion.
     // TODO(danielsievers): Add a member variable and avoid having to copy
     // them out here.
-    // 在已经保存的找到所有已经标记为kFinished状态的submap的id
+    // 在已经保存的找到所有已经标记为kFinished状态的submap的id --> 即查找地图列表中可以参与回环检测的子图id
     for (const auto& submap_id_data : data_.submap_data) {
       if (submap_id_data.data.state == SubmapState::kFinished) {
         // 以下是判断该节点应不位于子图内部，因为子图状态已经变为kFinished
@@ -567,15 +580,18 @@ WorkItem::Result PoseGraph2D::ComputeConstraintsForNode(
       }
     }
   }
-
+  
+  // note: 约束是一直构建的，只不过会有优化计算周期
   // 结束构建约束
   constraint_builder_.NotifyEndOfNode();
 
   absl::MutexLock locker(&mutex_);
   ++num_nodes_since_last_loop_closure_;
+  // num_nodes_since_last_loop_closure_该参数参与优化时才清零；另此函数在add_node时就会被调用
   // Step: 插入的节点数大于optimize_every_n_nodes时执行一次优化
   // optimize_every_n_nodes = 0 时不进行优化, 这样就可以单独分析前端的效果
-  if (options_.optimize_every_n_nodes() > 0 && // param: optimize_every_n_nodes
+  // param: optimize_every_n_nodes 每隔多少个节点进行一次优化
+  if (options_.optimize_every_n_nodes() > 0 && 
       num_nodes_since_last_loop_closure_ > options_.optimize_every_n_nodes()) {
     // 正在建图时只有这一块会返回 执行优化
     return WorkItem::Result::kRunOptimization;
@@ -631,7 +647,6 @@ void PoseGraph2D::DeleteTrajectoriesIfNeeded() {
 }
 
 // 将计算完的约束结果进行保存, 并执行优化
-// note: 这是另一个处理函数吗？
 void PoseGraph2D::HandleWorkQueue(
     const constraints::ConstraintBuilder2D::Result& result) {
   {
@@ -727,7 +742,7 @@ void PoseGraph2D::HandleWorkQueue(
 }
 
 // 在调用线程上执行工作队列中的待处理任务, 直到队列为空或需要优化时退出循环
-// note: 工作队列逐步执行，这个是主要函数吗？
+// QUES: 工作队列逐步执行，这个是主要函数吗？
 void PoseGraph2D::DrainWorkQueue() {
   bool process_work_queue = true;
   size_t work_queue_size;
@@ -759,6 +774,7 @@ void PoseGraph2D::DrainWorkQueue() {
   // We have to optimize again.
   // 退出循环后, 首先等待计算约束中的任务执行完, 再执行HandleWorkQueue,进行优化
   // core: 线程池使用->step4 退出work_queue循环，进行优化
+  // NOTE: 这里WhenDone内部函数为constraint_builder_处理约束的执行函数，而该函数的输入为约束类中定义计算的约束项（回环检测值),同时给when_down_完成赋值
   constraint_builder_.WhenDone(
       [this](const constraints::ConstraintBuilder2D::Result& result) {
         HandleWorkQueue(result);

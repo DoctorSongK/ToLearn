@@ -88,18 +88,21 @@ ConstraintBuilder2D::~ConstraintBuilder2D() {
  * @param[in] submap 单个submap
  * @param[in] node_id 节点的id
  * @param[in] constant_data 节点的数据
- * @param[in] initial_relative_pose 约束的初值
+ * @param[in] initial_relative_pose 约束的初值，节点相对于submap原点的位姿
  */
 void ConstraintBuilder2D::MaybeAddConstraint(
     const SubmapId& submap_id, const Submap2D* const submap,
     const NodeId& node_id, const TrajectoryNode::Data* const constant_data,
     const transform::Rigid2d& initial_relative_pose) {
-  // param: max_constraint_distance 超过范围的不进行约束的计算
+  // param: max_constraint_distance 超过范围的不进行约束的计算（超出范围是指节点距离子图原点的距离过大），这个参数很重要，因为在进行回环检测时，不能对所有的子图都进行计算处理，否则计算量过大；
+  // QUES: 同样存在漏洞，那就是必须我先认为你确实离我近了我在处理，但是累计误差过大时，这个作用就不大了
   if (initial_relative_pose.translation().norm() >
       options_.max_constraint_distance()) { 
     return;
   }
   // 根据参数配置添加约束的频率
+  // param: sampling_ratio 该参数用于控制局部回环检测的频率（可能会存在运动不均衡的问题）
+  // TODO: https://blog.csdn.net/zhzwang/article/details/113546877
   if (!per_submap_sampler_
            .emplace(std::piecewise_construct, std::forward_as_tuple(submap_id),
                     std::forward_as_tuple(options_.sampling_ratio()))
@@ -200,7 +203,7 @@ void ConstraintBuilder2D::NotifyEndOfNode() {
   ++num_started_nodes_;
 }
 
-// 约束计算完成之后执行一下回调函数
+// 约束计算完成之后执行一下回调函数，在附完值后直接传给线程池，由线程池来处理
 void ConstraintBuilder2D::WhenDone(
     const std::function<void(const ConstraintBuilder2D::Result&)>& callback) {
   absl::MutexLock locker(&mutex_);
@@ -262,7 +265,7 @@ ConstraintBuilder2D::DispatchScanMatcherConstruction(const SubmapId& submap_id,
  * @param[in] node_id 节点id
  * @param[in] match_full_submap 是局部匹配还是全子图匹配
  * @param[in] constant_data 节点数据
- * @param[in] initial_relative_pose 约束的初值
+ * @param[in] initial_relative_pose 约束的初值，节点相对于submaps原点的位姿
  * @param[in] submap_scan_matcher 匹配器
  * @param[out] constraint 计算出的约束
  */

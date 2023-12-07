@@ -59,7 +59,7 @@ SearchParameters::SearchParameters(const double linear_search_window,
   num_scans = 2 * num_angular_perturbations + 1;
 
   // XY方向的搜索范围, 单位是多少个栅格
-  // note: 应用参数linear_search_window
+  // note: 应用参数linear_search_window，这里的搜索框的大小是指一侧的，而总的搜索框大小是其2倍
   const int num_linear_perturbations =
       std::ceil(linear_search_window / resolution);
 
@@ -172,7 +172,14 @@ std::vector<sensor::PointCloud> GenerateRotatedScans(
   return rotated_scans;
 }
 
-// 将旋转后的点云集合按照预测出的平移量进行平移, 获取平移后的点在地图中的索引
+/**
+ * @brief 将旋转后的点云集合按照预测出的平移量进行平移, 获取平移后的点在地图中的索引
+ * 
+ * @param[in] map_limits 
+ * @param[in] scans 经旋转后的激光点云集合
+ * @param[in] initial_translation 
+ * @return std::vector<DiscreteScan2D> 
+ */
 std::vector<DiscreteScan2D> DiscretizeScans(
     const MapLimits& map_limits, const std::vector<sensor::PointCloud>& scans,
     const Eigen::Translation2f& initial_translation) {

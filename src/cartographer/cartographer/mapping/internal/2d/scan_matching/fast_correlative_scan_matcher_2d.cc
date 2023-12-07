@@ -21,6 +21,8 @@
 #include <deque>
 #include <functional>
 #include <limits>
+#include <fstream>
+#include <iomanip>
 
 #include "Eigen/Geometry"
 #include "absl/memory/memory.h"
@@ -99,6 +101,7 @@ CreateFastCorrelativeScanMatcherOptions2D(
 
 // 构造不同分辨率的地图
 // core: cartographer 后端--多分辨率地图构造部分-2
+// 实际参考： https://blog.csdn.net/Jeff_zjf/article/details/133210223?spm=1001.2014.3001.5502
 /**
  * @brief Construct a new Precomputation Grid 2 D:: Precomputation Grid 2 D object
  * 
@@ -198,6 +201,25 @@ PrecomputationGrid2D::PrecomputationGrid2D(
     }
     current_values.CheckIsEmpty();
   }
+  
+  /// sk add 可视化操作，查看多分辨率地图
+  // 保存多分辨栅格地图为txt文件
+  // static int idx = 0;
+  // static int depth = 7;
+  // int pre_id = idx / depth;
+  // int suffix_id = idx % depth;
+  // std::string f_name = "/home/sk/depth7/" + std::to_string(pre_id) + "-" + std::to_string(suffix_id) + ".txt";
+  // std::ofstream f(f_name);
+  // f << wide_limits_.num_y_cells << " " << wide_limits_.num_x_cells << std::endl;
+  // for(int i=0; i<wide_limits_.num_y_cells; i++){
+  //   for(int j=0; j<wide_limits_.num_x_cells; j++){
+  //     f << std::setw(4) << (int)cells_[j + i * wide_limits_.num_x_cells];
+  //   }
+  //   f << std::endl;
+  // }
+  // f << std::endl;
+  // f.close();
+  // idx++;
 }
 
 /* test
@@ -258,10 +280,11 @@ PrecomputationGridStack2D::PrecomputationGridStack2D(
 
   // param: branch_and_bound_depth 默认为7, 确定 最大的分辨率, 也就是64个栅格合成一个格子
   const int max_width = 1 << (options.branch_and_bound_depth() - 1); // 64
+  // 注意，precomputation_grid没有默认构造函数，所以不会直接构造，于下面完成emplace_back构造
   precomputation_grids_.reserve(options.branch_and_bound_depth());
   
   // 保存地图值
-  std::vector<float> reusable_intermediate_grid;
+  std::vector<float> reusable_intermediate_grid; // 这个只是一个中间值，最后的多分辨率地图保存在了precomputation_grids中的cells_中
   const CellLimits limits = grid.limits().cell_limits();
 
   // 经过滑窗后产生的栅格地图会变宽, x方向最多会比原地图多max_width-1个格子
@@ -294,7 +317,7 @@ FastCorrelativeScanMatcher2D::~FastCorrelativeScanMatcher2D() {}
 /**
  * @brief 进行局部搜索窗口的约束计算(对局部子图进行回环检测)
  * 
- * @param[in] initial_pose_estimate 先验位姿
+ * @param[in] initial_pose_estimate 先验位姿，节点相对于子图原点的位姿
  * @param[in] point_cloud 原点位于local坐标系原点处的点云
  * @param[in] min_score 最小阈值, 低于这个分数会返回失败
  * @param[out] score 匹配后的得分
@@ -305,7 +328,8 @@ bool FastCorrelativeScanMatcher2D::Match(
     const transform::Rigid2d& initial_pose_estimate,
     const sensor::PointCloud& point_cloud, const float min_score, float* score,
     transform::Rigid2d* pose_estimate) const {
-  // param: linear_search_window angular_search_window 
+  // param: linear_search_window angular_search_window，用于确定局部回环检测时的检测窗口的大小
+  // NOTE: 这里的limits_指的是原始地图的，而不是多分辨率地图的
   const SearchParameters search_parameters(options_.linear_search_window(),
                                            options_.angular_search_window(),
                                            point_cloud, limits_.resolution());
@@ -342,7 +366,18 @@ bool FastCorrelativeScanMatcher2D::MatchFullSubmap(
                                    min_score, score, pose_estimate);
 }
 
-// 进行基于分支定界算法的粗匹配
+/**
+ * @brief  进行基于分支定界算法的粗匹配
+ * 
+ * @param[in] search_parameters 
+ * @param[in] initial_pose_estimate 节点相对于子图原点的位姿
+ * @param[in] point_cloud 原点处的点云
+ * @param[in] min_score 
+ * @param[in] score 
+ * @param[in] pose_estimate 
+ * @return true 
+ * @return false 
+ */
 bool FastCorrelativeScanMatcher2D::MatchWithSearchParameters(
     SearchParameters search_parameters,
     const transform::Rigid2d& initial_pose_estimate,
@@ -362,7 +397,7 @@ bool FastCorrelativeScanMatcher2D::MatchWithSearchParameters(
   const std::vector<sensor::PointCloud> rotated_scans =
       GenerateRotatedScans(rotated_point_cloud, search_parameters);
 
-  // Step: 将旋转后的点云集合按照预测出的平移量进行平移, 获取平移后的点在地图中的索引
+  // Step: 将旋转后的点云集合按照预测出的平移量进行平移（从坐标原点）, 获取平移后的点在地图中的索引
   // 这里的离散激光点是在最细的分辨率的地图上面
   const std::vector<DiscreteScan2D> discrete_scans = DiscretizeScans(
       limits_, rotated_scans,
